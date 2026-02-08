@@ -11,7 +11,7 @@ from src.models.evaluation import (
     EvaluationReport,
 )
 
-router = APIRouter(prefix="/evaluation", tags=["evaluation"])
+router = APIRouter(tags=["evaluation"])
 
 
 @router.post("/compare", response_model=Evaluation)
@@ -27,7 +27,7 @@ def compare_answers(
     )
 
 
-@router.get("/project/{project_id}", response_model=EvaluationReport)
+@router.get("/get-project-evaluation", response_model=EvaluationReport)
 def get_project_evaluation(
     project_id: UUID,
     db: Session = Depends(get_db)

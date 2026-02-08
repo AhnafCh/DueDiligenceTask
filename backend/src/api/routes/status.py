@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, status
 from uuid import UUID
 
-router = APIRouter(prefix="/requests", tags=["status"])
+router = APIRouter(tags=["status"])
 
 
-@router.get("/{request_id}")
+@router.get("/get-request-status")
 def get_request_status(request_id: UUID) -> dict:
     """Get async task status."""
     # Stub implementation - will be fully implemented with Celery in Phase 2

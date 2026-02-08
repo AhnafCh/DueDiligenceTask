@@ -21,6 +21,18 @@ class Settings(BaseSettings):
     
     # Gemini
     google_api_key: str = ""
+    embedding_model: str = "models/gemini-embedding-001"
+    
+    # Document Storage
+    upload_dir: str = "storage/documents"
+    index_dir: str = "storage/indices"
+    max_file_size: int = 50 * 1024 * 1024  # 50MB
+    allowed_extensions: list[str] = [".pdf", ".docx", ".xlsx", ".pptx"]
+    
+    # Chunking Configuration
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+    min_chunk_size: int = 100
     
     # Logging
     log_level: str = "INFO"

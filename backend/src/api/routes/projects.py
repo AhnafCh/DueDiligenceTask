@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
+from pathlib import Path
+import shutil
+import os
 
 from src.storage.db.database import get_db
+from src.utils.config import get_settings
+from src.workers.tasks import parse_questionnaire_async
 from src.models.project import (
     Project,
     ProjectCreate,
@@ -12,10 +17,10 @@ from src.models.project import (
 )
 from src.storage.db.models import ProjectModel
 
-router = APIRouter(prefix="/projects", tags=["projects"])
+router = APIRouter(tags=["projects"])
 
 
-@router.post("/", response_model=Project, status_code=status.HTTP_201_CREATED)
+@router.post("/create-project", response_model=Project, status_code=status.HTTP_201_CREATED)
 def create_project(
     project: ProjectCreate,
     db: Session = Depends(get_db)
@@ -34,7 +39,7 @@ def create_project(
     return Project.model_validate(db_project)
 
 
-@router.get("/", response_model=List[Project])
+@router.get("/list-projects", response_model=List[Project])
 def list_projects(
     skip: int = 0,
     limit: int = 100,
@@ -46,7 +51,7 @@ def list_projects(
     return [Project.model_validate(p) for p in projects]
 
 
-@router.get("/{project_id}", response_model=ProjectDetail)
+@router.get("/get-project-info", response_model=ProjectDetail)
 def get_project(
     project_id: UUID,
     db: Session = Depends(get_db)
@@ -74,7 +79,7 @@ def get_project(
     )
 
 
-@router.put("/{project_id}", response_model=Project)
+@router.put("/update-project", response_model=Project)
 def update_project(
     project_id: UUID,
     project_update: ProjectUpdate,
@@ -100,7 +105,7 @@ def update_project(
     return Project.model_validate(db_project)
 
 
-@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/delete-project/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(
     project_id: UUID,
     db: Session = Depends(get_db)
@@ -118,35 +123,60 @@ def delete_project(
     db.commit()
 
 
-@router.post("/{project_id}/create-async")
-def create_project_async(
+@router.post("/{project_id}/questionnaire", status_code=status.HTTP_202_ACCEPTED)
+async def upload_questionnaire(
     project_id: UUID,
+    file: UploadFile = File(...),
     db: Session = Depends(get_db)
-) -> dict:
-    """Trigger async project creation."""
-    # Stub implementation - will be implemented in Phase 3
+):
+    """
+    Upload a questionnaire file and trigger async parsing.
+    """
+    settings = get_settings()
+    
+    # Verify project exists
+    project = db.query(ProjectModel).filter(ProjectModel.id == str(project_id)).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {project_id} not found"
+        )
+        
+    # Validation
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in [".pdf", ".docx"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only .pdf and .docx files are supported for questionnaires"
+        )
+        
+    # Save file
+    upload_dir = Path(settings.upload_dir)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = upload_dir / f"questionnaire_{project_id}{file_ext}"
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save file: {str(e)}"
+        )
+        
+    # Trigger Celery task
+    task = parse_questionnaire_async.delay(str(file_path), str(project_id))
+    
     return {
-        "request_id": str(UUID("00000000-0000-0000-0000-000000000000")),
-        "status": "pending",
-        "message": "Project creation queued (stub)"
+        "request_id": task.id,
+        "project_id": str(project_id),
+        "status": "queued",
+        "message": "Questionnaire uploaded and parsing started"
     }
 
 
-@router.post("/{project_id}/update-async")
-def update_project_async(
-    project_id: UUID,
-    db: Session = Depends(get_db)
-) -> dict:
-    """Trigger async project update."""
-    # Stub implementation - will be implemented in Phase 3
-    return {
-        "request_id": str(UUID("00000000-0000-0000-0000-000000000000")),
-        "status": "pending",
-        "message": "Project update queued (stub)"
-    }
-
-
-@router.get("/{project_id}/status")
+@router.get("/get-project-status")
 def get_project_status(
     project_id: UUID,
     db: Session = Depends(get_db)

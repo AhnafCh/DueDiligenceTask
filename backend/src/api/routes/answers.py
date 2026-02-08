@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
@@ -13,25 +13,39 @@ from src.models.answer import (
     AnswerFlagMissing,
 )
 from src.storage.db.models import AnswerModel
+from src.services.answer_service import AnswerService
 
-router = APIRouter(prefix="/answers", tags=["answers"])
+router = APIRouter(tags=["answers"])
 
 
-@router.post("/generate-single")
+def run_generate_single_answer(question_id: str):
+    """Worker function for single answer generation."""
+    from src.storage.db.database import SessionLocal
+    db = SessionLocal()
+    try:
+        service = AnswerService(db)
+        service.generate_answer(question_id)
+    finally:
+        db.close()
+
+@router.post("/generate-single-answer")
 def generate_single_answer(
     question_id: UUID,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ) -> dict:
     """Generate a single answer for a question."""
-    # Stub implementation - will be implemented in Phase 4
+    # Add to background tasks
+    background_tasks.add_task(run_generate_single_answer, str(question_id))
+    
     return {
-        "request_id": str(UUID("00000000-0000-0000-0000-000000000000")),
+        "request_id": str(question_id), # Using question_id as request_id for now
         "status": "pending",
-        "message": "Answer generation queued (stub)"
+        "message": "Answer generation started in background"
     }
 
 
-@router.post("/generate-all")
+@router.post("/generate-all-answers")
 def generate_all_answers(
     project_id: UUID,
     db: Session = Depends(get_db)
@@ -45,7 +59,7 @@ def generate_all_answers(
     }
 
 
-@router.get("/{answer_id}", response_model=Answer)
+@router.get("/get-answer")
 def get_answer(
     answer_id: UUID,
     db: Session = Depends(get_db)
@@ -62,7 +76,7 @@ def get_answer(
     return Answer.model_validate(answer)
 
 
-@router.put("/{answer_id}", response_model=Answer)
+@router.post("/update-answer", response_model=Answer)
 def update_answer(
     answer_id: UUID,
     answer_update: AnswerUpdate,
@@ -90,7 +104,7 @@ def update_answer(
     return Answer.model_validate(db_answer)
 
 
-@router.post("/{answer_id}/confirm", response_model=Answer)
+@router.post("/confirm-answer", response_model=Answer)
 def confirm_answer(
     answer_id: UUID,
     confirm_data: AnswerConfirm,
@@ -116,7 +130,7 @@ def confirm_answer(
     return Answer.model_validate(db_answer)
 
 
-@router.post("/{answer_id}/reject", response_model=Answer)
+@router.post("/reject-answer", response_model=Answer)
 def reject_answer(
     answer_id: UUID,
     reject_data: AnswerReject,
@@ -141,7 +155,7 @@ def reject_answer(
     return Answer.model_validate(db_answer)
 
 
-@router.post("/{answer_id}/flag-missing", response_model=Answer)
+@router.post("/flag-answer-missing", response_model=Answer)
 def flag_missing_data(
     answer_id: UUID,
     flag_data: AnswerFlagMissing,
@@ -166,7 +180,7 @@ def flag_missing_data(
     return Answer.model_validate(db_answer)
 
 
-@router.get("/{answer_id}/history")
+@router.get("/get-answer-history")
 def get_answer_history(
     answer_id: UUID,
     db: Session = Depends(get_db)
