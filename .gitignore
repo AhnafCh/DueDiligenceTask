@@ -1,4 +1,4 @@
-# Python
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
@@ -19,49 +19,82 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
+.coverage
+htmlcov/
+*.pyo
 
-# Virtual Environment
+# --- Virtual Environments ---
 venv/
 env/
 ENV/
+.venv/
+bin/
+include/
+share/
 
-# IDE
+# --- Node / Frontend ---
+node_modules/
+.npm
+dist/
+.vite
+.next/
+.server
+.client
+
+# --- IDE / Editors ---
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
 
-# Environment
+# --- Environment Variables ---
 .env
 .env.local
+.env.*.local
+*.env
+!.env.example
 
-# Database
+# --- Databases & Large Objects ---
 *.db
 *.sqlite
 *.sqlite3
+indices/
+*.index
+*.pkl
+*.npy
+*.faiss
+*.storage
 
-# Uploads
-uploads/
-temp/
-
-# Logs
-*.log
-logs/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Celery
+# --- Celery ---
 celerybeat-schedule
 celerybeat.pid
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
+# --- Storage / Uploads / Temp ---
+uploads/
+temp/
+tmp/
+storage/documents/*
+!storage/documents/.gitkeep
+
+# --- Logs ---
+*.log
+logs/
+
+# --- OS Specific ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- Project Specific ---
 .agent/
-.env
-plans/
-docs/

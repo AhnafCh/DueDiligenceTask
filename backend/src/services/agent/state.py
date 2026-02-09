@@ -17,3 +17,4 @@ class AgentState(TypedDict):
     errors: List[str]
     # Trace metadata
     steps: List[str]
+    feedback: Optional[str]

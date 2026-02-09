@@ -9,7 +9,8 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from src.models.project import Project, ProjectCreate, ProjectUpdate, ProjectStatus, ScopeType
+from src.models.project import ProjectCreate, ProjectUpdate, ProjectStatus
+from src.storage.db.models import ProjectModel
 from src.services.questionnaire.parser import QuestionnaireParser
 from src.services.questionnaire.converter import QuestionnaireConverter
 from src.services.document_service import DocumentService
@@ -27,13 +28,11 @@ class ProjectService:
         self.converter = QuestionnaireConverter(db)
         self.doc_service = DocumentService(db)
 
-    def create_project(self, project_in: ProjectCreate) -> Project:
+    def create_project(self, project_in: ProjectCreate) -> ProjectModel:
         """
         Create a new project. 
-        If it's created from a file (implied by context usually, but here we just create the record),
-        the actual parsing might happen in a separate step or method.
         """
-        project = Project(
+        project = ProjectModel(
             name=project_in.name,
             description=project_in.description,
             scope_type=project_in.scope_type,
@@ -43,20 +42,17 @@ class ProjectService:
         self.db.commit()
         self.db.refresh(project)
         
-        # Associate documents if any
-        # TODO: Implement many-to-many relationship handling for Project-Document
-        
         return project
 
-    def get_project(self, project_id: UUID) -> Optional[Project]:
+    def get_project(self, project_id: UUID) -> Optional[ProjectModel]:
         """Get project by ID."""
-        return self.db.query(Project).get(project_id)
+        return self.db.query(ProjectModel).get(str(project_id))
 
-    def list_projects(self, skip: int = 0, limit: int = 100) -> List[Project]:
+    def list_projects(self, skip: int = 0, limit: int = 100) -> List[ProjectModel]:
         """List all projects."""
-        return self.db.query(Project).offset(skip).limit(limit).all()
+        return self.db.query(ProjectModel).offset(skip).limit(limit).all()
 
-    def update_project(self, project_id: UUID, project_in: ProjectUpdate) -> Optional[Project]:
+    def update_project(self, project_id: UUID, project_in: ProjectUpdate) -> Optional[ProjectModel]:
         """Update a project."""
         project = self.get_project(project_id)
         if not project:
@@ -71,7 +67,7 @@ class ProjectService:
         self.db.refresh(project)
         return project
 
-    def process_questionnaire_file(self, project_id: UUID, file_path: Path) -> Project:
+    def process_questionnaire_file(self, project_id: UUID, file_path: Path) -> ProjectModel:
         """
         Process a questionnaire file: Parse -> Convert -> Save Structure.
         This is typically called efficiently from a background task.

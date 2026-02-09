@@ -92,13 +92,20 @@ class IngestionPipeline:
             chunk_ids = []
             chunk_texts = []
             
+            from dataclasses import asdict, is_dataclass
+            
             for chunk in chunks:
+                bbox = chunk.metadata.bounding_box
+                # Convert BoundingBox dataclass to dict for JSON serialization
+                if bbox and is_dataclass(bbox):
+                    bbox = asdict(bbox)
+                    
                 db_chunk = ChunkModel(
                     document_id=document_id,
                     text=chunk.text,
                     chunk_index=chunk.metadata.chunk_index,
                     page_number=chunk.metadata.page_number,
-                    bounding_box=chunk.metadata.bounding_box
+                    bounding_box=bbox
                 )
                 self.db.add(db_chunk)
                 # Flush to get ID
@@ -120,5 +127,6 @@ class IngestionPipeline:
         except Exception as e:
             logger.error(f"Ingestion failed for {document_id}: {e}")
             traceback.print_exc()
+            self.db.rollback()  # Ensure transaction is rolled back before status update
             self.document_service.update_status(document_id, DocumentStatus.ERROR, str(e))
             raise

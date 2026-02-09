@@ -61,6 +61,8 @@ class Answer(AnswerBase):
     status: AnswerStatus = AnswerStatus.PENDING
     created_by: str = "AI"  # "AI" or "HUMAN"
     review_comment: Optional[str] = None
+    thread_id: Optional[str] = None
+    processing_metadata: Optional[dict] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     citations: List[Citation] = Field(default_factory=list)

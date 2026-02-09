@@ -9,6 +9,7 @@ class SimilarityMetrics(BaseModel):
     semantic_similarity: float = Field(..., ge=0.0, le=1.0)
     keyword_overlap: float = Field(..., ge=0.0, le=1.0)
     bleu_score: float = Field(..., ge=0.0, le=1.0)
+    agentic_score: Optional[float] = Field(None, ge=0.0, le=1.0)
     combined_score: float = Field(..., ge=0.0, le=1.0)
     explanation: str
 
@@ -16,7 +17,7 @@ class SimilarityMetrics(BaseModel):
 class EvaluationBase(BaseModel):
     """Base evaluation schema."""
     ai_answer_id: UUID
-    human_answer_text: str
+    human_answer_text: Optional[str] = None
 
 
 class EvaluationCreate(EvaluationBase):

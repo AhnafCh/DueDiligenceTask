@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     # Gemini
     google_api_key: str = ""
     embedding_model: str = "models/gemini-embedding-001"
+    embedding_dimension: int = 3072
     
     # Document Storage
     upload_dir: str = "storage/documents"

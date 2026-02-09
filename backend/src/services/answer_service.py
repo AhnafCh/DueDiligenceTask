@@ -23,13 +23,7 @@ class AnswerService:
 
     def generate_answer(self, question_id: str) -> AnswerModel:
         """
-        Generates an answer for a single question.
-        
-        Args:
-            question_id: ID of the question to answer
-            
-        Returns:
-            The created AnswerModel
+        Generates an answer for a single question with persistence.
         """
         logger.info(f"Generating answer for question: {question_id}")
         
@@ -44,7 +38,7 @@ class AnswerService:
         # 2. Prepare Agent State
         initial_state: AgentState = {
             "question": question.text,
-            "project_id": question.project_id,
+            "project_id": str(question.project_id),
             "document_ids": document_ids,
             "documents": [],
             "generation": None,
@@ -53,17 +47,20 @@ class AnswerService:
             "retries": 0,
             "max_retries": 1,
             "errors": [],
-            "steps": []
+            "steps": [],
+            "feedback": None
         }
 
-        # 3. Run Agent
-        final_state = self.graph.invoke(initial_state)
-
-        # 4. Filter existing answers (soft delete or replace?)
-        # For now, we'll mark old ones as Replaced or just add new ones. 
-        # Requirement says "Preserve AI and human answers", so we'll just add new ones as PENDING.
+        # 3. Run Agent with checkpointer
+        from src.services.langgraph_persistence import LangGraphPersistence
+        thread_id = str(uuid4())
+        config = {"configurable": {"thread_id": thread_id}}
         
-        # 5. Save to DB
+        with LangGraphPersistence.get_sqlite_checkpointer() as checkpointer:
+            graph = create_rag_graph(checkpointer=checkpointer)
+            final_state = graph.invoke(initial_state, config=config)
+
+        # 4. Save to DB
         db_answer = AnswerModel(
             question_id=question_id,
             text=final_state["generation"] or "No answer generated.",
@@ -71,22 +68,27 @@ class AnswerService:
             confidence_score=final_state["confidence_score"],
             status=AnswerStatus.PENDING,
             created_by="AI",
+            thread_id=thread_id,
+            processing_metadata={"steps": final_state.get("steps", [])},
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
         self.db.add(db_answer)
-        self.db.flush() # Get ID for citations
+        self.db.flush()
 
-        # 6. Save Citations
-        for doc in final_state["documents"]:
-            # Only save citations if they are actually used in the answer
-            # Basic check: if filename is in answer (simplified for now)
+        # 5. Save Citations
+        from dataclasses import asdict, is_dataclass
+        for doc in final_state.get("documents", []):
+            bbox = doc.bounding_box
+            if bbox and is_dataclass(bbox):
+                bbox = asdict(bbox)
+                
             citation = CitationModel(
                 answer_id=db_answer.id,
                 chunk_id=doc.id,
                 chunk_text=doc.text,
                 page_number=doc.page_number,
-                bounding_box=doc.bounding_box,
+                bounding_box=bbox,
                 document_name=doc.filename
             )
             self.db.add(citation)

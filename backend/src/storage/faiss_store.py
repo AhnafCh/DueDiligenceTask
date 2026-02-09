@@ -18,17 +18,17 @@ class FAISSStore:
     Supports saving/loading indices and ID mapping.
     """
     
-    def __init__(self, index_name: str, dimension: int = 768):
+    def __init__(self, index_name: str, dimension: Optional[int] = None):
         """
         Initialize FAISS store.
         
         Args:
             index_name: Name of the index (e.g., 'semantic', 'citation')
-            dimension: Vector dimension (default 768 for Google embeddings)
+            dimension: Vector dimension (if None, use value from settings)
         """
         self.settings = get_settings()
         self.index_name = index_name
-        self.dimension = dimension
+        self.dimension = dimension or self.settings.embedding_dimension
         self.index_dir = Path(self.settings.index_dir)
         self.index_path = self.index_dir / f"{index_name}.index"
         self.mapping_path = self.index_dir / f"{index_name}_mapping.pkl"

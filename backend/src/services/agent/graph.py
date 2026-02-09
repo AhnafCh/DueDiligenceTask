@@ -42,7 +42,7 @@ def grade_generation_v_documents_and_question(state: AgentState):
             return "not grounded"
         return "useful" # Give up and return what we have
 
-def create_rag_graph():
+def create_rag_graph(checkpointer=None):
     """
     Creates and compiles the LangGraph for RAG.
     """
@@ -77,4 +77,4 @@ def create_rag_graph():
         },
     )
 
-    return workflow.compile()
+    return workflow.compile(checkpointer=checkpointer)

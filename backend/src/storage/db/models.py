@@ -84,6 +84,8 @@ class AnswerModel(Base):
     status = Column(Enum(AnswerStatus), nullable=False, default=AnswerStatus.PENDING, index=True)
     created_by = Column(String(10), nullable=False, default="AI")  # "AI" or "HUMAN"
     review_comment = Column(Text, nullable=True)
+    thread_id = Column(String(36), nullable=True)
+    processing_metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
@@ -168,6 +170,7 @@ class EvaluationModel(Base):
     semantic_similarity = Column(Float, nullable=False)
     keyword_overlap = Column(Float, nullable=False)
     bleu_score = Column(Float, nullable=False)
+    agentic_score = Column(Float, nullable=True)
     combined_score = Column(Float, nullable=False)
     explanation = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

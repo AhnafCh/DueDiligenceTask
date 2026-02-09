@@ -35,7 +35,11 @@ def generate_node(state: AgentState) -> Dict[str, Any]:
     for i, doc in enumerate(documents, 1):
         context_list.append(f"[{i}] Source: {doc.filename}\nContent: {doc.text}")
     context = "\n\n".join(context_list)
-    
+
+    # Handle feedback if present
+    feedback = state.get("feedback")
+    feedback_prompt = f"\n\nUSER FEEDBACK ON PREVIOUS ATTEMPT: {feedback}\nPlease incorporate this feedback into your revised answer. Use the context to address the feedback." if feedback else ""
+
     prompt = f"""You are a due diligence assistant. Use the following context to answer the question.
     
     CRITICAL RULES:
@@ -44,6 +48,7 @@ def generate_node(state: AgentState) -> Dict[str, Any]:
     3. If the answer is not in the context, say you don't know and set is_answerable to false.
     4. Provide a confidence score based on how explicitly the context answers the question.
     5. List which document indices you actually used in 'cited_indices'.
+    {feedback_prompt}
 
     Question: {question} 
     

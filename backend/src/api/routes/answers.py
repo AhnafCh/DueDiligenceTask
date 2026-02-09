@@ -13,7 +13,7 @@ from src.models.answer import (
     AnswerFlagMissing,
 )
 from src.storage.db.models import AnswerModel
-from src.services.answer_service import AnswerService
+from src.services.review_service import ReviewService
 
 router = APIRouter(tags=["answers"])
 
@@ -35,11 +35,10 @@ def generate_single_answer(
     db: Session = Depends(get_db)
 ) -> dict:
     """Generate a single answer for a question."""
-    # Add to background tasks
     background_tasks.add_task(run_generate_single_answer, str(question_id))
     
     return {
-        "request_id": str(question_id), # Using question_id as request_id for now
+        "request_id": str(question_id),
         "status": "pending",
         "message": "Answer generation started in background"
     }
@@ -48,24 +47,25 @@ def generate_single_answer(
 @router.post("/generate-all-answers")
 def generate_all_answers(
     project_id: UUID,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ) -> dict:
     """Generate all answers for a project."""
-    # Stub implementation - will be implemented in Phase 4
+    # This would normally trigger a background task that iterates through questions
+    # For now, we'll just return a success message as a stub for the bulk trigger
     return {
-        "request_id": str(UUID("00000000-0000-0000-0000-000000000000")),
+        "request_id": str(uuid4()),
         "status": "pending",
-        "message": "Bulk answer generation queued (stub)"
+        "message": "Bulk answer generation (stub)"
     }
 
 
-@router.get("/get-answer")
+@router.get("/get-answer", response_model=Answer)
 def get_answer(
     answer_id: UUID,
     db: Session = Depends(get_db)
 ) -> Answer:
     """Get answer details."""
-    # Stub implementation
     answer = db.query(AnswerModel).filter(AnswerModel.id == str(answer_id)).first()
     if not answer:
         raise HTTPException(
@@ -82,26 +82,14 @@ def update_answer(
     answer_update: AnswerUpdate,
     db: Session = Depends(get_db)
 ) -> Answer:
-    """Update/override an answer."""
-    # Stub implementation
-    db_answer = db.query(AnswerModel).filter(AnswerModel.id == str(answer_id)).first()
-    if not db_answer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Answer {answer_id} not found"
-        )
-    
-    update_data = answer_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        if field == "is_manual" and value:
-            db_answer.created_by = "HUMAN"
-        else:
-            setattr(db_answer, field, value)
-    
-    db.commit()
-    db.refresh(db_answer)
-    
-    return Answer.model_validate(db_answer)
+    """Update/override an answer manually."""
+    service = ReviewService(db)
+    try:
+        if answer_update.text:
+            return service.manual_update(str(answer_id), answer_update.text)
+        return service.manual_update(str(answer_id), "") # Or handle empty
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/confirm-answer", response_model=Answer)
@@ -111,23 +99,11 @@ def confirm_answer(
     db: Session = Depends(get_db)
 ) -> Answer:
     """Confirm an AI-generated answer."""
-    # Stub implementation
-    db_answer = db.query(AnswerModel).filter(AnswerModel.id == str(answer_id)).first()
-    if not db_answer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Answer {answer_id} not found"
-        )
-    
-    from src.models.answer import AnswerStatus
-    db_answer.status = AnswerStatus.CONFIRMED
-    if confirm_data.comment:
-        db_answer.review_comment = confirm_data.comment
-    
-    db.commit()
-    db.refresh(db_answer)
-    
-    return Answer.model_validate(db_answer)
+    service = ReviewService(db)
+    try:
+        return service.confirm_answer(str(answer_id), confirm_data.comment)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/reject-answer", response_model=Answer)
@@ -137,22 +113,11 @@ def reject_answer(
     db: Session = Depends(get_db)
 ) -> Answer:
     """Reject an AI-generated answer."""
-    # Stub implementation
-    db_answer = db.query(AnswerModel).filter(AnswerModel.id == str(answer_id)).first()
-    if not db_answer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Answer {answer_id} not found"
-        )
-    
-    from src.models.answer import AnswerStatus
-    db_answer.status = AnswerStatus.REJECTED
-    db_answer.review_comment = reject_data.reason
-    
-    db.commit()
-    db.refresh(db_answer)
-    
-    return Answer.model_validate(db_answer)
+    service = ReviewService(db)
+    try:
+        return service.reject_answer(str(answer_id), reject_data.reason)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/flag-answer-missing", response_model=Answer)
@@ -162,46 +127,46 @@ def flag_missing_data(
     db: Session = Depends(get_db)
 ) -> Answer:
     """Flag an answer as having missing data."""
-    # Stub implementation
-    db_answer = db.query(AnswerModel).filter(AnswerModel.id == str(answer_id)).first()
-    if not db_answer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Answer {answer_id} not found"
-        )
-    
-    from src.models.answer import AnswerStatus
-    db_answer.status = AnswerStatus.MISSING_DATA
-    db_answer.review_comment = flag_data.missing_info
-    
-    db.commit()
-    db.refresh(db_answer)
-    
-    return Answer.model_validate(db_answer)
+    service = ReviewService(db)
+    try:
+        return service.flag_missing_data(str(answer_id), flag_data.missing_info)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/get-answer-history")
+@router.post("/{answer_id}/refine", response_model=Answer)
+def refine_answer(
+    answer_id: UUID,
+    feedback: str,
+    db: Session = Depends(get_db)
+) -> Answer:
+    """Refine answer using LangGraph HITL with feedback."""
+    service = ReviewService(db)
+    try:
+        return service.refine_answer(str(answer_id), feedback)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/{answer_id}/history")
 def get_answer_history(
     answer_id: UUID,
     db: Session = Depends(get_db)
 ) -> dict:
     """Get answer review history."""
-    # Stub implementation - will be fully implemented in Phase 5
-    db_answer = db.query(AnswerModel).filter(AnswerModel.id == str(answer_id)).first()
-    if not db_answer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Answer {answer_id} not found"
-        )
-    
+    service = ReviewService(db)
+    history = service.get_history(str(answer_id))
     return {
-        "answer_id": str(db_answer.id),
-        "history": [
-            {
-                "timestamp": db_answer.created_at.isoformat(),
-                "action": "created",
-                "status": db_answer.status,
-                "comment": db_answer.review_comment
-            }
-        ]
+        "answer_id": str(answer_id),
+        "history": history
     }
+
+
+@router.get("/{answer_id}/trace")
+def get_answer_trace(
+    answer_id: UUID,
+    db: Session = Depends(get_db)
+) -> dict:
+    """Get LangGraph execution trace."""
+    service = ReviewService(db)
+    return service.get_trace(str(answer_id))

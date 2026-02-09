@@ -22,6 +22,7 @@ class EmbeddingService:
             raise ValueError("GOOGLE_API_KEY not configured")
         
         genai.configure(api_key=settings.google_api_key)
+        self.settings = settings
         self.model_name = settings.embedding_model
         logger.info(f"Initialized EmbeddingService with model: {self.model_name}")
     
@@ -75,7 +76,7 @@ class EmbeddingService:
                     if text and text.strip():
                         embeddings.append(self.generate_embedding(text))
                     else:
-                        embeddings.append([0.0] * 768)
+                        embeddings.append([0.0] * self.settings.embedding_dimension)
         
         return embeddings
     
